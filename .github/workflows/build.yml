@@ -21,27 +21,29 @@ jobs:
     - name: Install dependencies
       run: |
         pip install beautifulsoup4
-        npm install -g cordova cordova-android
+        npm install -g cordova
 
     - name: Create Cordova project and build
       run: |
-        # Extract config from build.py
+        # Extract config from build.py and set as ENV VARS for this step
         APP_NAME=$(python -c "from build import APP_NAME; print(APP_NAME)")
         PACKAGE_NAME=$(python -c "from build import PACKAGE_NAME; print(PACKAGE_NAME)")
         VERSION_CODE=$(python -c "from build import VERSION_CODE; print(VERSION_CODE)")
         VERSION_NAME=$(python -c "from build import VERSION_NAME; print(VERSION_NAME)")
         ICON_PATH=$(python -c "from build import ICON_PATH; print(ICON_PATH)")
         WEB_ASSETS_PATH=$(python -c "from build import WEB_ASSETS_PATH; print(WEB_ASSETS_PATH)")
+        echo "APP_NAME=$APP_NAME" >> $GITHUB_ENV
 
         # Create a Cordova project
-        cordova create $APP_NAME $PACKAGE_NAME "$APP_NAME"
-        cd $APP_NAME
+        cordova create cordova_project $PACKAGE_NAME "$APP_NAME"
+        cd cordova_project
 
         # Add Android platform
-        cordova platform add android@latest
+        cordova platform add android@12
 
         # Copy web assets and icon
         cp -r ../$WEB_ASSETS_PATH/* www/
+        mkdir -p res/icon/android
         cp ../$ICON_PATH res/icon/android/icon-512x512.png
 
         # Update config.xml with version and icon
@@ -52,21 +54,20 @@ with open('config.xml', 'r+') as f:
     widget = soup.find('widget')
     widget['version'] = '$VERSION_NAME'
     widget['android-versionCode'] = '$VERSION_CODE'
-    # Add icon tag
     icon_tag = soup.new_tag('icon', src='res/icon/android/icon-512x512.png')
     widget.append(icon_tag)
     f.seek(0)
     f.write(str(soup))
     f.truncate()
-        "
-
-        # Build the APK
-        cordova build android --release -- -- --keystore=release.keystore --storePassword=$KEYSTORE_PASSWORD --alias=$KEY_ALIAS --password=$KEY_PASSWORD
+"
+        # Build the unsigned APK for signing in the next step
+        cordova build android --release -- --unsigned
 
     - name: Sign the APK
+      id: sign_apk
       uses: r0adkll/sign-android-release@v1
       with:
-        releaseDirectory: ${{ github.workspace }}/${{ env.APP_NAME }}/platforms/android/app/build/outputs/apk/release
+        releaseDirectory: ${{ github.workspace }}/cordova_project/platforms/android/app/build/outputs/apk/release
         signingKeyBase64: ${{ secrets.SIGNING_KEY_BASE64 }}
         alias: ${{ secrets.ALIAS }}
         keyStorePassword: ${{ secrets.KEY_STORE_PASSWORD }}
@@ -76,4 +77,4 @@ with open('config.xml', 'r+') as f:
       uses: actions/upload-artifact@v3
       with:
         name: eruda-browser-apk
-        path: ${{ github.workspace }}/${{ env.APP_NAME }}/platforms/android/app/build/outputs/apk/release/app-release-signed.apk
+        path: ${{ steps.sign_apk.outputs.signedReleaseFile }}
