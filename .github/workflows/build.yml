@@ -24,13 +24,11 @@ jobs:
         npm install -g cordova
 
     - name: Setup Android SDK and Build Tools
-      run: |
-        # Set ANDROID_HOME
-        echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
-        echo "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" >> $GITHUB_PATH
-
-        # Install specific build tools and platform
-        sdkmanager "build-tools;33.0.2" "platforms;android-33"
+      uses: android-actions/setup-android@v2
+      with:
+        build-tools: '33.0.2'
+        sdk-version: '33'
+        cmdline-tools: 'latest'
 
     - name: Set Build Variables
       id: vars
