@@ -49,6 +49,12 @@ jobs:
         mkdir -p res/icon/android
         cp ../${{ steps.vars.outputs.ICON_PATH }} res/icon/android/icon-512x512.png
 
+    - name: Create local.properties
+      run: |
+        echo "sdk.dir=$ANDROID_HOME" > cordova_project/platforms/android/local.properties
+      env:
+        ANDROID_HOME: ${{ steps.setup-android.outputs.android-sdk-path }}
+
     - name: Update Cordova Config
       run: python update_config.py
       env:
