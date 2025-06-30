@@ -2,51 +2,51 @@ name: Build Android APK
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout repository
+    - name: 📥 Checkout Repository
       uses: actions/checkout@v3
 
-    - name: Set up Python
+    - name: 🧪 Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.x'
 
-    - name: Install dependencies
+    - name: 🧰 Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+
+    - name: 📦 Install Dependencies
       run: |
         pip install beautifulsoup4 lxml
         npm install -g cordova
 
-    - name: Setup Android SDK and Build Tools (Manual)
+    - name: 🛠 Install Android SDK via sdkmanager
+      env:
+        ANDROID_SDK_ROOT: /usr/local/android-sdk
       run: |
-        ANDROID_SDK_ROOT="/usr/local/lib/android/sdk"
-        mkdir -p $ANDROID_SDK_ROOT
-        cd $ANDROID_SDK_ROOT
-
-        # Download command-line tools
-        wget -q https://dl.google.com/android/repository/commandlinetools-linux-8583028_latest.zip
-        unzip -q commandlinetools-linux-8583028_latest.zip
-        rm commandlinetools-linux-8583028_latest.zip
+        mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools"
+        cd "$ANDROID_SDK_ROOT/cmdline-tools"
+        wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
+        unzip -q commandlinetools-linux-*.zip
+        rm commandlinetools-linux-*.zip
         mv cmdline-tools latest
 
-        # Set environment variables
         echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
-        echo "$ANDROID_SDK_ROOT/latest/bin" >> $GITHUB_PATH
         echo "$ANDROID_SDK_ROOT/platform-tools" >> $GITHUB_PATH
+        echo "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" >> $GITHUB_PATH
 
-        # Accept licenses
-        yes | latest/bin/sdkmanager --licenses
+        yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses
+        $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager "platform-tools" "platforms;android-33" "build-tools;33.0.2"
 
-        # Install specific build tools and platform
-        latest/bin/sdkmanager "build-tools;33.0.2" "platforms;android-33"
-
-    - name: Set Build Variables
+    - name: 🔎 Load Build Variables
       id: vars
       run: |
         echo "APP_NAME=$(python -c 'from build import APP_NAME; print(APP_NAME)')" >> $GITHUB_OUTPUT
@@ -56,7 +56,7 @@ jobs:
         echo "ICON_PATH=$(python -c 'from build import ICON_PATH; print(ICON_PATH)')" >> $GITHUB_OUTPUT
         echo "WEB_ASSETS_PATH=$(python -c 'from build import WEB_ASSETS_PATH; print(WEB_ASSETS_PATH)')" >> $GITHUB_OUTPUT
 
-    - name: Create and Configure Cordova Project
+    - name: 📂 Create Cordova Project
       run: |
         cordova create cordova_project ${{ steps.vars.outputs.PACKAGE_NAME }} "${{ steps.vars.outputs.APP_NAME }}"
         cd cordova_project
@@ -65,23 +65,23 @@ jobs:
         mkdir -p res/icon/android
         cp ../${{ steps.vars.outputs.ICON_PATH }} res/icon/android/icon-512x512.png
 
-    - name: Create local.properties
+    - name: ⚙️ Create `local.properties`
       run: |
-        echo "sdk.dir=$ANDROID_HOME" > cordova_project/platforms/android/local.properties
+        echo "sdk.dir=$ANDROID_SDK_ROOT" > cordova_project/platforms/android/local.properties
       env:
-        ANDROID_HOME: ${{ steps.setup-android.outputs.android-sdk-path }}
+        ANDROID_SDK_ROOT: /usr/local/android-sdk
 
-    - name: Update Cordova Config
+    - name: 🔧 Update Cordova Config
       run: python update_config.py
       env:
         VERSION_NAME: ${{ steps.vars.outputs.VERSION_NAME }}
         VERSION_CODE: ${{ steps.vars.outputs.VERSION_CODE }}
 
-    - name: Build Unsigned APK
+    - name: 🧱 Build Unsigned APK
       run: cordova build android --release -- --unsigned
       working-directory: ./cordova_project
 
-    - name: Sign the APK
+    - name: 🔐 Sign APK
       id: sign_apk
       uses: r0adkll/sign-android-release@v1
       with:
@@ -91,7 +91,7 @@ jobs:
         keyStorePassword: ${{ secrets.KEY_STORE_PASSWORD }}
         keyPassword: ${{ secrets.KEY_PASSWORD }}
 
-    - name: Upload APK artifact
+    - name: 📤 Upload Signed APK
       uses: actions/upload-artifact@v4
       with:
         name: eruda-browser-apk
