@@ -3,7 +3,7 @@ name: Build Android APK
 on:
   push:
     branches:
-      - main # Or your default branch
+      - main
 
 jobs:
   build:
@@ -23,45 +23,58 @@ jobs:
         pip install beautifulsoup4
         npm install -g cordova
 
+    - name: Set Build Variables
+      id: vars
+      run: |
+        echo "APP_NAME=$(python -c 'from build import APP_NAME; print(APP_NAME)')" >> $GITHUB_OUTPUT
+        echo "PACKAGE_NAME=$(python -c 'from build import PACKAGE_NAME; print(PACKAGE_NAME)')" >> $GITHUB_OUTPUT
+        echo "VERSION_CODE=$(python -c 'from build import VERSION_CODE; print(VERSION_CODE)')" >> $GITHUB_OUTPUT
+        echo "VERSION_NAME=$(python -c 'from build import VERSION_NAME; print(VERSION_NAME)')" >> $GITHUB_OUTPUT
+        echo "ICON_PATH=$(python -c 'from build import ICON_PATH; print(ICON_PATH)')" >> $GITHUB_OUTPUT
+        echo "WEB_ASSETS_PATH=$(python -c 'from build import WEB_ASSETS_PATH; print(WEB_ASSETS_PATH)')" >> $GITHUB_OUTPUT
+
     - name: Create Cordova project and build
       run: |
-        # Extract config from build.py and set as ENV VARS for this step
-        APP_NAME=$(python -c "from build import APP_NAME; print(APP_NAME)")
-        PACKAGE_NAME=$(python -c "from build import PACKAGE_NAME; print(PACKAGE_NAME)")
-        VERSION_CODE=$(python -c "from build import VERSION_CODE; print(VERSION_CODE)")
-        VERSION_NAME=$(python -c "from build import VERSION_NAME; print(VERSION_NAME)")
-        ICON_PATH=$(python -c "from build import ICON_PATH; print(ICON_PATH)")
-        WEB_ASSETS_PATH=$(python -c "from build import WEB_ASSETS_PATH; print(WEB_ASSETS_PATH)")
-        echo "APP_NAME=$APP_NAME" >> $GITHUB_ENV
-
         # Create a Cordova project
-        cordova create cordova_project $PACKAGE_NAME "$APP_NAME"
+        cordova create cordova_project ${{ steps.vars.outputs.PACKAGE_NAME }} "${{ steps.vars.outputs.APP_NAME }}"
         cd cordova_project
 
         # Add Android platform
         cordova platform add android@12
 
         # Copy web assets and icon
-        cp -r ../$WEB_ASSETS_PATH/* www/
+        cp -r ../${{ steps.vars.outputs.WEB_ASSETS_PATH }}/* www/
         mkdir -p res/icon/android
-        cp ../$ICON_PATH res/icon/android/icon-512x512.png
+        cp ../${{ steps.vars.outputs.ICON_PATH }} res/icon/android/icon-512x512.png
 
-        # Update config.xml with version and icon
-        python -c "
+        # Create a python script to update config.xml
+        cat << EOF > update_config.py
+import os
 from bs4 import BeautifulSoup
+
+version_name = os.environ['VERSION_NAME']
+version_code = os.environ['VERSION_CODE']
+
 with open('config.xml', 'r+') as f:
     soup = BeautifulSoup(f.read(), 'xml')
     widget = soup.find('widget')
-    widget['version'] = '$VERSION_NAME'
-    widget['android-versionCode'] = '$VERSION_CODE'
+    widget['version'] = version_name
+    widget['android-versionCode'] = version_code
     icon_tag = soup.new_tag('icon', src='res/icon/android/icon-512x512.png')
     widget.append(icon_tag)
     f.seek(0)
     f.write(str(soup))
     f.truncate()
-"
-        # Build the unsigned APK for signing in the next step
+EOF
+
+        # Update config.xml using the script
+        python update_config.py
+
+        # Build the unsigned APK
         cordova build android --release -- --unsigned
+      env:
+        VERSION_NAME: ${{ steps.vars.outputs.VERSION_NAME }}
+        VERSION_CODE: ${{ steps.vars.outputs.VERSION_CODE }}
 
     - name: Sign the APK
       id: sign_apk
