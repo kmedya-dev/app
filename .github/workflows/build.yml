@@ -33,9 +33,6 @@ jobs:
         # Ensure basic commands are in PATH
         export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
         
-        # Install wget and unzip if not present (should be by default, but for robustness)
-        sudo apt-get update && sudo apt-get install -y wget unzip
-        
         ANDROID_SDK_ROOT="/usr/local/lib/android/sdk"
         mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools"
         cd "$ANDROID_SDK_ROOT/cmdline-tools"
