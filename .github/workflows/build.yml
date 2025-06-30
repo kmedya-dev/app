@@ -63,7 +63,7 @@ jobs:
         keyPassword: ${{ secrets.KEY_PASSWORD }}
 
     - name: Upload APK artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: eruda-browser-apk
         path: ${{ steps.sign_apk.outputs.signedReleaseFile }}
