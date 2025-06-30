@@ -23,6 +23,12 @@ jobs:
         pip install beautifulsoup4 lxml
         npm install -g cordova
 
+    - name: Install Android Build Tools
+      uses: android-actions/setup-android@v2
+      with:
+        build-tools: '33.0.2'
+        sdk-version: '33'
+
     - name: Set Build Variables
       id: vars
       run: |
