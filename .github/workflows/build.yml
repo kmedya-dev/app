@@ -30,21 +30,19 @@ jobs:
 
     - name: 🛠 Install Android SDK via sdkmanager
       env:
-        ANDROID_SDK_ROOT: /usr/local/android-sdk
+        ANDROID_SDK_ROOT: ${{ github.workspace }}/android-sdk
+        PATH: ${{ github.workspace }}/android-sdk/cmdline-tools/latest/bin:${{ github.workspace }}/android-sdk/platform-tools:${{ github.workspace }}/android-sdk/emulator:$PATH
       run: |
         mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools"
         cd "$ANDROID_SDK_ROOT/cmdline-tools"
-        wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
-        unzip -q commandlinetools-linux-*.zip
-        rm commandlinetools-linux-*.zip
+        curl -o sdk.zip https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+        unzip sdk.zip
         mv cmdline-tools latest
-
-        echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
-        echo "$ANDROID_SDK_ROOT/platform-tools" >> $GITHUB_PATH
-        echo "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" >> $GITHUB_PATH
-
-        yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses
-        $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager "platform-tools" "platforms;android-33" "build-tools;33.0.2"
+        yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_SDK_ROOT --licenses
+        $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager \
+          "platform-tools" \
+          "build-tools;33.0.2" \
+          "platforms;android-33"
 
     - name: 🔎 Load Build Variables
       id: vars
@@ -67,9 +65,7 @@ jobs:
 
     - name: ⚙️ Create `local.properties`
       run: |
-        echo "sdk.dir=$ANDROID_SDK_ROOT" > cordova_project/platforms/android/local.properties
-      env:
-        ANDROID_SDK_ROOT: /usr/local/android-sdk
+        echo "sdk.dir=${{ github.workspace }}/android-sdk" > cordova_project/platforms/android/local.properties
 
     - name: 🔧 Update Cordova Config
       run: python update_config.py
