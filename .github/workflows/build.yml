@@ -37,17 +37,17 @@ jobs:
         mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools"
         cd "$ANDROID_SDK_ROOT/cmdline-tools"
 
-        #"⏬ Downloading Android command-line tools..."
-        echo wget https://dl.google.com/android/repository/commandlinetools-linux-8583028_latest.zip -O tools.zip || curl -L https://dl.google.com/android/repository/commandlinetools-linux-8583028_latest.zip -o tools.zip
+        echo "⏬ Downloading Android command-line tools..."
+wget https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O tools.zip || curl -L https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -o tools.zip
 
-        if [ ! -f tools.zip ]; then
-          echo "❌ Failed to download command-line tools."
-          exit 1
-        fi
+if [ ! -f tools.zip ]; then
+  echo "❌ Failed to download command-line tools."
+  exit 1
+fi
 
-        unzip -q tools.zip
-        rm tools.zip
-        mv cmdline-tools latest
+unzip -q tools.zip
+rm tools.zip
+mv cmdline-tools latest
 
         # Set environment variables for subsequent steps
         echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
