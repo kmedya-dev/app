@@ -33,48 +33,24 @@ jobs:
         echo "ICON_PATH=$(python -c 'from build import ICON_PATH; print(ICON_PATH)')" >> $GITHUB_OUTPUT
         echo "WEB_ASSETS_PATH=$(python -c 'from build import WEB_ASSETS_PATH; print(WEB_ASSETS_PATH)')" >> $GITHUB_OUTPUT
 
-    - name: Create Cordova project and build
+    - name: Create and Configure Cordova Project
       run: |
-        # Create a Cordova project
         cordova create cordova_project ${{ steps.vars.outputs.PACKAGE_NAME }} "${{ steps.vars.outputs.APP_NAME }}"
         cd cordova_project
-
-        # Add Android platform
         cordova platform add android@12
-
-        # Copy web assets and icon
         cp -r ../${{ steps.vars.outputs.WEB_ASSETS_PATH }}/* www/
         mkdir -p res/icon/android
         cp ../${{ steps.vars.outputs.ICON_PATH }} res/icon/android/icon-512x512.png
 
-        # Create a python script to update config.xml
-        cat << EOF > update_config.py
-import os
-from bs4 import BeautifulSoup
-
-version_name = os.environ['VERSION_NAME']
-version_code = os.environ['VERSION_CODE']
-
-with open('config.xml', 'r+') as f:
-    soup = BeautifulSoup(f.read(), 'xml')
-    widget = soup.find('widget')
-    widget['version'] = version_name
-    widget['android-versionCode'] = version_code
-    icon_tag = soup.new_tag('icon', src='res/icon/android/icon-512x512.png')
-    widget.append(icon_tag)
-    f.seek(0)
-    f.write(str(soup))
-    f.truncate()
-EOF
-
-        # Update config.xml using the script
-        python update_config.py
-
-        # Build the unsigned APK
-        cordova build android --release -- --unsigned
+    - name: Update Cordova Config
+      run: python update_config.py
       env:
         VERSION_NAME: ${{ steps.vars.outputs.VERSION_NAME }}
         VERSION_CODE: ${{ steps.vars.outputs.VERSION_CODE }}
+
+    - name: Build Unsigned APK
+      run: cordova build android --release -- --unsigned
+      working-directory: ./cordova_project
 
     - name: Sign the APK
       id: sign_apk
