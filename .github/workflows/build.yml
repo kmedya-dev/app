@@ -10,11 +10,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 📥 Checkout code
       - name: 📥 Checkout Repository
         uses: actions/checkout@v4
 
-      # ☕ Python & Node.js for Cordova
       - name: ☕ Set up Python & Node.js
         uses: actions/setup-python@v5
         with:
@@ -24,13 +22,11 @@ jobs:
         with:
           node-version: '18'
 
-      # 🧰 Install Python & Cordova dependencies
       - name: 📦 Install Dependencies
         run: |
           pip install beautifulsoup4 lxml
           npm install -g cordova@7
 
-      # 📥 Download Android SDK CLI tools
       - name: 📥 Set up Android SDK
         run: |
           set -xe
@@ -55,7 +51,6 @@ jobs:
           yes | sdkmanager --licenses > /dev/null
           sdkmanager "platforms;android-33" "build-tools;33.0.2" "platform-tools" > /dev/null
 
-      # 🔎 Load build variables
       - name: 🔎 Load Build Variables
         id: vars
         run: |
@@ -66,7 +61,6 @@ jobs:
           echo "ICON_PATH=$(python -c 'from build import ICON_PATH; print(ICON_PATH)')" >> $GITHUB_OUTPUT
           echo "WEB_ASSETS_PATH=$(python -c 'from build import WEB_ASSETS_PATH; print(WEB_ASSETS_PATH)')" >> $GITHUB_OUTPUT
 
-      # 📂 Create Cordova project
       - name: 📂 Create Cordova Project
         run: |
           set -xe
@@ -74,45 +68,49 @@ jobs:
           cd cordova_project
           cordova platform add android@12
           cp -r ../${{ steps.vars.outputs.WEB_ASSETS_PATH }}/* www/
-
           mkdir -p res/icon/android
           cp ../${{ steps.vars.outputs.ICON_PATH }} res/icon/android/icon-512x512.png
 
-      # ⚙️ Create local.properties for Gradle
       - name: ⚙️ Create local.properties
         run: echo "sdk.dir=$ANDROID_SDK_ROOT" > cordova_project/platforms/android/local.properties
 
-      # 🔧 Update config.xml using Python script
       - name: 🔧 Update Cordova Config
         run: python update_config.py
         env:
           VERSION_NAME: ${{ steps.vars.outputs.VERSION_NAME }}
           VERSION_CODE: ${{ steps.vars.outputs.VERSION_CODE }}
 
-      # 🧱 Build Unsigned APK
       - name: 🧱 Build Unsigned APK
         run: |
           set -xe
           cordova build android --release --verbose
         working-directory: ./cordova_project
 
-      # 🔍 Debug APK files
       - name: 🔍 List APKs for Debug
         run: find cordova_project/platforms/android -name "*.apk" || echo "No APKs found"
 
-      # 🔐 Sign the APK using GitHub secrets
       - name: 🔐 Sign APK
         id: sign_apk
         run: |
           set -xe
           KEYSTORE_PATH=${{ github.workspace }}/release.keystore
-          echo "${{ secrets.SIGNING_KEY_BASE64 }}" | base64 --decode > $KEYSTORE_PATH
+          echo "${{ secrets.SIGNING_KEY_BASE64 }}" | base64 --decode > "$KEYSTORE_PATH"
 
-          UNSIGNED_APK=$(find ${{ github.workspace }}/cordova_project/platforms/android -name "*-unsigned.apk" | head -n 1)
+          echo "🔍 Searching for unsigned APK..."
+          APK_DIR="${{ github.workspace }}/cordova_project/platforms/android"
+          ALL_APKS=$(find "$APK_DIR" -type f -name "*release*.apk")
+          echo "📦 Found APKs:"
+          echo "$ALL_APKS"
+
+          UNSIGNED_APK=$(echo "$ALL_APKS" | grep 'unsigned.apk' | head -n 1)
+
           if [ -z "$UNSIGNED_APK" ]; then
-            echo "Error: Unsigned APK not found."
+            echo "❌ Error: No unsigned APK found."
+            find "$APK_DIR" -type f
             exit 1
           fi
+
+          echo "✅ Unsigned APK path: $UNSIGNED_APK"
 
           SIGNED_APK_DIR=$(dirname "$UNSIGNED_APK")
           APP_NAME_VERSION="${{ steps.vars.outputs.APP_NAME }}-${{ steps.vars.outputs.VERSION_NAME }}"
@@ -128,13 +126,7 @@ jobs:
 
           apksigner verify "$SIGNED_APK_PATH"
           echo "signedReleaseFile=$SIGNED_APK_PATH" >> $GITHUB_OUTPUT
-        env:
-          SIGNING_KEY_BASE64: ${{ secrets.SIGNING_KEY_BASE64 }}
-          ALIAS: ${{ secrets.ALIAS }}
-          KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
-      # 📤 Upload final signed APK
       - name: 📤 Upload Signed APK
         uses: actions/upload-artifact@v4
         with:
