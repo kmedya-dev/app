@@ -87,7 +87,9 @@ jobs:
         working-directory: ./cordova_project
 
       - name: 🔍 List APKs for Debug
-        run: find cordova_project/platforms/android -name "*.apk" || echo "No APKs found"
+        run: |
+          echo "📦 APKs found:"
+          find cordova_project/platforms/android -type f -name "*.apk"
 
       - name: 🔐 Sign APK
         id: sign_apk
@@ -102,8 +104,7 @@ jobs:
           echo "📦 Found APKs:"
           echo "$ALL_APKS"
 
-          UNSIGNED_APK=$(echo "$ALL_APKS" | grep 'unsigned.apk' | head -n 1)
-
+          UNSIGNED_APK=$(echo "$ALL_APKS" | grep -Ei 'release.*\.apk$' | head -n 1)
           if [ -z "$UNSIGNED_APK" ]; then
             echo "❌ Error: No unsigned APK found."
             find "$APK_DIR" -type f
