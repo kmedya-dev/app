@@ -10,36 +10,30 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 📥 Step 1: Checkout the code
       - name: 📥 Checkout Repository
         uses: actions/checkout@v4
 
-      # ☕ Step 2: Set up JDK 11 for Cordova
-      - name: ☕ Set up JDK 11
+      - name: ☕ Set up Java (only for Android tools)
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '11'
+          java-version: '17'  # ✅ Needed by sdkmanager (class version 61)
 
-      # 🧪 Step 3: Set up Python (used for build vars + config)
       - name: 🧪 Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.x'
 
-      # 🧰 Step 4: Set up Node.js (for Cordova CLI)
       - name: 🧰 Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '18'
 
-      # 📦 Step 5: Install Dependencies
       - name: 📦 Install Python + Cordova
         run: |
           pip install beautifulsoup4 lxml
           npm install -g cordova@7
 
-      # 🧱 Step 6: Download and install Android Command Line Tools
       - name: 📥 Download Android SDK Tools
         run: |
           set -xe
@@ -47,8 +41,6 @@ jobs:
           echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
           echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
 
-          # Download and install command-line tools using a stable, direct link
-          # This avoids fragile web scraping. The version can be updated periodically.
           mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools"
           cd "$ANDROID_SDK_ROOT/cmdline-tools"
           wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O tools.zip
@@ -56,19 +48,15 @@ jobs:
           mv temp/cmdline-tools ./latest
           rm -rf temp tools.zip
 
-          # 📍 Add Android tools to PATH
           echo "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" >> $GITHUB_PATH
           echo "$ANDROID_SDK_ROOT/platform-tools" >> $GITHUB_PATH
           echo "$ANDROID_SDK_ROOT/build-tools/33.0.2" >> $GITHUB_PATH
 
-      - name: ✅ Install Android SDK Packages
+      - name: ✅ Accept Licenses + Install SDK
         run: |
-          set -xe
-          # Accept licenses + install SDK packages
-          yes | sdkmanager --licenses > /dev/null
-          sdkmanager "platforms;android-33" "build-tools;33.0.2" "platform-tools" > /dev/null
+          yes | sdkmanager --licenses
+          sdkmanager "platforms;android-33" "build-tools;33.0.2" "platform-tools"
 
-      # 🔎 Step 7: Load values from `build.py`
       - name: 🔎 Load Build Variables
         id: vars
         run: |
@@ -79,37 +67,28 @@ jobs:
           echo "ICON_PATH=$(python -c 'from build import ICON_PATH; print(ICON_PATH)')" >> $GITHUB_OUTPUT
           echo "WEB_ASSETS_PATH=$(python -c 'from build import WEB_ASSETS_PATH; print(WEB_ASSETS_PATH)')" >> $GITHUB_OUTPUT
 
-      # 📂 Step 8: Create Cordova project from template
       - name: 📂 Create Cordova Project
         run: |
           cordova create cordova_project ${{ steps.vars.outputs.PACKAGE_NAME }} "${{ steps.vars.outputs.APP_NAME }}"
           cd cordova_project
           cordova platform add android@12
-
-          # 🕸 Copy your web assets to `www/`
           cp -r ../${{ steps.vars.outputs.WEB_ASSETS_PATH }}/* www/
-
-          # 📸 Add app icon
           mkdir -p res/icon/android
           cp ../${{ steps.vars.outputs.ICON_PATH }} res/icon/android/icon-512x512.png
 
-      # ⚙️ Step 9: Set up SDK path
       - name: ⚙️ Create local.properties
         run: echo "sdk.dir=$ANDROID_SDK_ROOT" > cordova_project/platforms/android/local.properties
 
-      # 🧾 Step 10: Update config.xml (version info, etc.)
       - name: 🔧 Update Cordova Config
         run: python update_config.py
         env:
           VERSION_NAME: ${{ steps.vars.outputs.VERSION_NAME }}
           VERSION_CODE: ${{ steps.vars.outputs.VERSION_CODE }}
 
-      # 🧱 Step 11: Build unsigned release APK
       - name: 🧱 Build Unsigned APK
         run: cordova build android --release
         working-directory: ./cordova_project
 
-      # 🔐 Step 12: Sign the APK using GitHub Secrets
       - name: 🔐 Sign APK
         id: sign_apk
         run: |
@@ -136,7 +115,6 @@ jobs:
           KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
-      # 📤 Step 13: Upload signed APK to GitHub Actions Artifacts
       - name: 📤 Upload Signed APK
         uses: actions/upload-artifact@v4
         with:
