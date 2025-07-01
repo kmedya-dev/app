@@ -1,4 +1,4 @@
-name: Build Android APK
+name: 📱 Build ErudaBrowser APK
 
 on:
   push:
@@ -10,31 +10,28 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 📥 Checkout code
       - name: 📥 Checkout Repository
         uses: actions/checkout@v4
 
-      - name: ☕ Set up Java (only for Android tools)
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'  # ✅ Needed by sdkmanager (class version 61)
-
-      - name: 🧪 Set up Python
+      # ☕ Python & Node.js for Cordova
+      - name: ☕ Set up Python & Node.js
         uses: actions/setup-python@v5
         with:
           python-version: '3.x'
 
-      - name: 🧰 Set up Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '18'
 
-      - name: 📦 Install Python + Cordova
+      # 🧰 Install Python & Cordova dependencies
+      - name: 📦 Install Dependencies
         run: |
           pip install beautifulsoup4 lxml
           npm install -g cordova@7
 
-      - name: 📥 Download Android SDK Tools
+      # 📥 Download Android SDK CLI tools
+      - name: 📥 Set up Android SDK
         run: |
           set -xe
           export ANDROID_SDK_ROOT="/usr/local/lib/android/sdk"
@@ -52,11 +49,13 @@ jobs:
           echo "$ANDROID_SDK_ROOT/platform-tools" >> $GITHUB_PATH
           echo "$ANDROID_SDK_ROOT/build-tools/33.0.2" >> $GITHUB_PATH
 
-      - name: ✅ Accept Licenses + Install SDK
+      - name: ✅ Install Android SDK Packages
         run: |
-          yes | sdkmanager --licenses
-          sdkmanager "platforms;android-33" "build-tools;33.0.2" "platform-tools"
+          set -xe
+          yes | sdkmanager --licenses > /dev/null
+          sdkmanager "platforms;android-33" "build-tools;33.0.2" "platform-tools" > /dev/null
 
+      # 🔎 Load build variables
       - name: 🔎 Load Build Variables
         id: vars
         run: |
@@ -67,28 +66,41 @@ jobs:
           echo "ICON_PATH=$(python -c 'from build import ICON_PATH; print(ICON_PATH)')" >> $GITHUB_OUTPUT
           echo "WEB_ASSETS_PATH=$(python -c 'from build import WEB_ASSETS_PATH; print(WEB_ASSETS_PATH)')" >> $GITHUB_OUTPUT
 
+      # 📂 Create Cordova project
       - name: 📂 Create Cordova Project
         run: |
+          set -xe
           cordova create cordova_project ${{ steps.vars.outputs.PACKAGE_NAME }} "${{ steps.vars.outputs.APP_NAME }}"
           cd cordova_project
           cordova platform add android@12
           cp -r ../${{ steps.vars.outputs.WEB_ASSETS_PATH }}/* www/
+
           mkdir -p res/icon/android
           cp ../${{ steps.vars.outputs.ICON_PATH }} res/icon/android/icon-512x512.png
 
+      # ⚙️ Create local.properties for Gradle
       - name: ⚙️ Create local.properties
         run: echo "sdk.dir=$ANDROID_SDK_ROOT" > cordova_project/platforms/android/local.properties
 
+      # 🔧 Update config.xml using Python script
       - name: 🔧 Update Cordova Config
         run: python update_config.py
         env:
           VERSION_NAME: ${{ steps.vars.outputs.VERSION_NAME }}
           VERSION_CODE: ${{ steps.vars.outputs.VERSION_CODE }}
 
+      # 🧱 Build Unsigned APK
       - name: 🧱 Build Unsigned APK
-        run: cordova build android --release
+        run: |
+          set -xe
+          cordova build android --release --verbose
         working-directory: ./cordova_project
 
+      # 🔍 Debug APK files
+      - name: 🔍 List APKs for Debug
+        run: find cordova_project/platforms/android -name "*.apk" || echo "No APKs found"
+
+      # 🔐 Sign the APK using GitHub secrets
       - name: 🔐 Sign APK
         id: sign_apk
         run: |
@@ -96,7 +108,7 @@ jobs:
           KEYSTORE_PATH=${{ github.workspace }}/release.keystore
           echo "${{ secrets.SIGNING_KEY_BASE64 }}" | base64 --decode > $KEYSTORE_PATH
 
-          UNSIGNED_APK=$(find ${{ github.workspace }}/cordova_project/platforms/android/app/build/outputs/apk/release -name "*unsigned.apk" | head -n 1)
+          UNSIGNED_APK=$(find ${{ github.workspace }}/cordova_project/platforms/android -name "*-unsigned.apk" | head -n 1)
           if [ -z "$UNSIGNED_APK" ]; then
             echo "Error: Unsigned APK not found."
             exit 1
@@ -106,7 +118,14 @@ jobs:
           APP_NAME_VERSION="${{ steps.vars.outputs.APP_NAME }}-${{ steps.vars.outputs.VERSION_NAME }}"
           SIGNED_APK_PATH="$SIGNED_APK_DIR/$APP_NAME_VERSION.apk"
 
-          apksigner sign --ks $KEYSTORE_PATH --ks-key-alias "${{ secrets.ALIAS }}" --ks-pass "pass:${{ secrets.KEY_STORE_PASSWORD }}" --key-pass "pass:${{ secrets.KEY_PASSWORD }}" --out "$SIGNED_APK_PATH" "$UNSIGNED_APK"
+          apksigner sign \
+            --ks "$KEYSTORE_PATH" \
+            --ks-key-alias "${{ secrets.ALIAS }}" \
+            --ks-pass "pass:${{ secrets.KEY_STORE_PASSWORD }}" \
+            --key-pass "pass:${{ secrets.KEY_PASSWORD }}" \
+            --out "$SIGNED_APK_PATH" \
+            "$UNSIGNED_APK"
+
           apksigner verify "$SIGNED_APK_PATH"
           echo "signedReleaseFile=$SIGNED_APK_PATH" >> $GITHUB_OUTPUT
         env:
@@ -115,6 +134,7 @@ jobs:
           KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
+      # 📤 Upload final signed APK
       - name: 📤 Upload Signed APK
         uses: actions/upload-artifact@v4
         with:
