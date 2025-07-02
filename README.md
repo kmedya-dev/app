@@ -25,7 +25,7 @@ Eruda is automatically injected into every webpage. To open the Eruda console, s
 ├── build.py                # Python script with build variables
 ├── update_config.py        # Python script to update Cordova's config.xml
 ├── icon.png                # Application icon
-├── release.keystore        # Keystore for signing the APK
+├── release-key.jks         # Keystore for signing the APK
 └── README.md               # This file
 ```
 
