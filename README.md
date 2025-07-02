@@ -8,6 +8,10 @@ This project is a simple Android browser that injects the [Eruda](https://github
 *   **Developer Console:** Eruda is injected on every page, providing a powerful console for debugging, inspecting elements, and monitoring network requests.
 *   **Automated Builds:** The included GitHub Actions workflow automatically builds, signs, and uploads a release-ready APK on every push to `main`.
 
+## 🚀 How to Use Eruda
+
+Eruda is automatically injected into every webpage. To open the Eruda console, simply tap the screen three times quickly. You can then use its various features for debugging and inspection.
+
 ## 📂 Project Structure
 
 ```
@@ -16,8 +20,8 @@ This project is a simple Android browser that injects the [Eruda](https://github
 │   └── workflows/
 │       └── build.yml       # GitHub Actions workflow for automated builds
 ├── www/
-│   ├── index.html          # Main HTML file for the browser
-│   └── eruda.min.js        # Eruda console library
+│   ├── index.html          # Main HTML file for the browser's webview
+│   └── eruda.min.js        # Eruda console library, injected into webpages
 ├── build.py                # Python script with build variables
 ├── update_config.py        # Python script to update Cordova's config.xml
 ├── icon.png                # Application icon
@@ -51,14 +55,13 @@ Once you have the prerequisites, you can run the following commands:
 # Install Python dependencies
 pip install beautifulsoup4 lxml
 
-# Create the Cordova project
-cordova create cordova_project com.example.erudabrowser "Eruda Browser"
-
-# Add the Android platform
+# Navigate to the Cordova project directory
 cd cordova_project
+
+# Add the Android platform (if not already added)
 cordova platform add android
 
-# Copy web assets
+# Copy web assets from the root www/ directory to the Cordova project's www/ directory
 cp -r ../www/* www/
 
 # Build the APK
